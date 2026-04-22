@@ -10,7 +10,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/iamsnaaz/poc2.git'
+                git branch: 'main', url: 'https://github.com/iamsnaaz/POC7.git'
             }
         }
 
@@ -20,15 +20,37 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('OWASP Dependency Check') {
             steps {
-                sh 'echo "No tests yet"'
+                dependencyCheck(
+                    odcInstallation: 'Dependency-Check',
+                    additionalArguments: '--scan . --format XML --format HTML'
+                )
+                dependencyCheckPublisher(
+                    pattern: '**/dependency-check-report.xml'
+                )
             }
         }
 
         stage('Docker Build') {
             steps {
                 sh 'docker build -t $IMAGE_NAME:$TAG .'
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh '''
+                mkdir -p trivy-cache
+
+                trivy image --download-db-only --cache-dir trivy-cache || true
+
+                trivy image \
+                --cache-dir trivy-cache \
+                --skip-db-update \
+                --severity HIGH,CRITICAL \
+                $IMAGE_NAME:$TAG || true
+                '''
             }
         }
 
@@ -39,20 +61,30 @@ pipeline {
                     usernameVariable: 'USER',
                     passwordVariable: 'PASS'
                 )]) {
-                    sh 'echo $PASS | docker login -u $USER --password-stdin'
-                    sh 'docker push $IMAGE_NAME:$TAG'
+                    sh '''
+                    echo $PASS | docker login -u $USER --password-stdin
+                    docker push $IMAGE_NAME:$TAG
+                    '''
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy via Ansible') {
             steps {
                 sh '''
-                docker stop poc-container || true
-                docker rm poc-container || true
-                docker run -d -p 8081:8080 --name poc-container $IMAGE_NAME:$TAG
+                ansible-playbook -i /var/lib/jenkins/inventory /var/lib/jenkins/deploy.yml \
+                --extra-vars "image=$IMAGE_NAME:$TAG"
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            sh '''
+            docker image prune -f || true
+            rm -rf trivy-cache || true
+            '''
         }
     }
 }
