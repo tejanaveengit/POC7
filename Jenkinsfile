@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "iamsnaaz/cicd-pipeline-demo"
+        IMAGE_NAME = "IMAGE_NAME = "dockerdemmo/simple-docker-app9"
         TAG = "latest"
     }
 
