@@ -10,7 +10,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/iamsnaaz/POC7.git'
+                git branch: 'main', url: 'https://github.com/tejanaveengit/POC7.git'
             }
         }
 
